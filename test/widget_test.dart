@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listillify/injection.dart';
@@ -18,35 +17,24 @@ void main() {
     DependencyInjection.init(storage: mockStorage);
   });
 
-  testWidgets('ListillifyApp renders HomePage with UserSessionCard and PlaylistForm',
+  testWidgets('ListillifyApp starts on LoginPage with Spotify login and config dialog',
       (WidgetTester tester) async {
     await tester.pumpWidget(const ListillifyApp());
     await tester.pumpAndSettle();
 
-    // Comprobamos elementos de la pantalla principal
-    expect(find.text('Listillify'), findsOneWidget);
-    expect(find.byIcon(Icons.settings), findsOneWidget);
+    // Verificamos pantalla inicial de bienvenida / login
+    expect(find.text('Bienvenido a Listillify'), findsOneWidget);
+    expect(find.text('Iniciar sesión con Spotify'), findsOneWidget);
+    expect(find.text('Credenciales pendientes'), findsOneWidget);
+    expect(find.text('Configurar'), findsOneWidget);
 
-    // Comprobamos la tarjeta de sesión de usuario
-    expect(find.text('No has iniciado sesión'), findsOneWidget);
-    expect(find.text('Conectar'), findsOneWidget);
-
-    // Comprobamos el formulario de playlist
-    expect(find.text('Crear Nueva Playlist'), findsOneWidget);
-    expect(find.text('Nombre de la playlist'), findsOneWidget);
-    expect(find.text('Ejemplo'), findsOneWidget);
-
-    // Tocamos el botón de 'Ejemplo' para autocompletar canciones
-    await tester.tap(find.text('Ejemplo'));
+    // Tocamos el botón de Configurar para abrir el modal
+    await tester.tap(find.text('Configurar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Clásicos de Rock y Éxitos'), findsOneWidget);
-
-    // Abrimos el diálogo de configuración desde el AppBar
-    await tester.tap(find.byIcon(Icons.settings));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Configuración de Spotify API'), findsOneWidget);
+    // Verificamos los campos de Client ID y Client Secret
+    expect(find.text('Credenciales de Spotify API'), findsOneWidget);
     expect(find.text('Spotify Client ID'), findsOneWidget);
+    expect(find.text('Spotify Client Secret'), findsOneWidget);
   });
 }

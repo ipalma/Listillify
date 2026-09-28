@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:listillify/core/theme/app_theme.dart';
 import 'package:listillify/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:listillify/features/auth/presentation/cubit/auth_state.dart';
+import 'package:listillify/features/auth/presentation/pages/login_page.dart';
 import 'package:listillify/features/auth/presentation/widgets/user_session_card.dart';
 import 'package:listillify/features/config/presentation/cubit/config_cubit.dart';
 import 'package:listillify/features/config/presentation/widgets/config_dialog.dart';
@@ -40,7 +42,14 @@ class ListillifyApp extends StatelessWidget {
         title: 'Listillify',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
-        home: const HomePage(),
+        home: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, authState) {
+            if (authState is Authenticated) {
+              return const HomePage();
+            }
+            return const LoginPage();
+          },
+        ),
       ),
     );
   }

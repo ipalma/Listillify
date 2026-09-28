@@ -44,14 +44,15 @@ void main() {
     blocTest<ConfigCubit, ConfigState>(
       'emits [ConfigLoading, ConfigLoaded] when loadConfig succeeds',
       build: () {
-        when(() => mockGetUseCase(any()))
-            .thenAnswer((_) async => const Success(ApiConfig(clientId: 'id_123')));
+        when(() => mockGetUseCase(any())).thenAnswer(
+          (_) async => const Success(ApiConfig(clientId: 'id_123', clientSecret: 'sec_123')),
+        );
         return cubit;
       },
       act: (c) => c.loadConfig(),
       expect: () => [
         const ConfigLoading(),
-        const ConfigLoaded(ApiConfig(clientId: 'id_123')),
+        const ConfigLoaded(ApiConfig(clientId: 'id_123', clientSecret: 'sec_123')),
       ],
     );
 
@@ -76,10 +77,10 @@ void main() {
             .thenAnswer((_) async => const Success(null));
         return cubit;
       },
-      act: (c) => c.saveConfig('valid_id'),
+      act: (c) => c.saveConfig(clientId: 'valid_id', clientSecret: 'valid_secret'),
       expect: () => [
         const ConfigLoading(),
-        const ConfigSavedSuccess(ApiConfig(clientId: 'valid_id')),
+        const ConfigSavedSuccess(ApiConfig(clientId: 'valid_id', clientSecret: 'valid_secret')),
       ],
     );
 
@@ -87,13 +88,13 @@ void main() {
       'emits [ConfigLoading, ConfigError] when saveConfig fails with ValidationFailure',
       build: () {
         when(() => mockSaveUseCase(any()))
-            .thenAnswer((_) async => const FailureResult(ValidationFailure(message: 'ID no válido')));
+            .thenAnswer((_) async => const FailureResult(ValidationFailure(message: 'Credenciales no válidas')));
         return cubit;
       },
-      act: (c) => c.saveConfig(''),
+      act: (c) => c.saveConfig(clientId: '', clientSecret: ''),
       expect: () => [
         const ConfigLoading(),
-        const ConfigError('ID no válido'),
+        const ConfigError('Credenciales no válidas'),
       ],
     );
   });

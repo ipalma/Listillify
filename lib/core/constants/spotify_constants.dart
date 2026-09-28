@@ -28,6 +28,7 @@ abstract final class SpotifyConstants {
 
   // Claves para el almacenamiento seguro local
   static const String secureStorageClientIdKey = 'spotify_client_id';
+  static const String secureStorageClientSecretKey = 'spotify_client_secret';
   static const String secureStorageAccessTokenKey = 'spotify_access_token';
   static const String secureStorageRefreshTokenKey = 'spotify_refresh_token';
   static const String secureStorageTokenExpiresAtKey = 'spotify_token_expires_at';

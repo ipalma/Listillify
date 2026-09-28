@@ -26,10 +26,17 @@ class SecureConfigRepository implements ConfigRepository {
   Future<Result<ApiConfig>> getConfig() async {
     try {
       final clientId = await _storage.read(key: SpotifyConstants.secureStorageClientIdKey);
+      final clientSecret = await _storage.read(key: SpotifyConstants.secureStorageClientSecretKey);
+
       if (clientId == null || clientId.trim().isEmpty) {
         return const Success(ApiConfig.empty());
       }
-      return Success(ApiConfig(clientId: clientId.trim()));
+      return Success(
+        ApiConfig(
+          clientId: clientId.trim(),
+          clientSecret: clientSecret?.trim() ?? '',
+        ),
+      );
     } catch (e) {
       return FailureResult(
         StorageFailure(message: 'Error al leer la configuración segura: $e'),
@@ -44,6 +51,10 @@ class SecureConfigRepository implements ConfigRepository {
         key: SpotifyConstants.secureStorageClientIdKey,
         value: config.clientId.trim(),
       );
+      await _storage.write(
+        key: SpotifyConstants.secureStorageClientSecretKey,
+        value: config.clientSecret.trim(),
+      );
       return const Success(null);
     } catch (e) {
       return FailureResult(
@@ -56,6 +67,7 @@ class SecureConfigRepository implements ConfigRepository {
   Future<Result<void>> clearConfig() async {
     try {
       await _storage.delete(key: SpotifyConstants.secureStorageClientIdKey);
+      await _storage.delete(key: SpotifyConstants.secureStorageClientSecretKey);
       return const Success(null);
     } catch (e) {
       return FailureResult(
