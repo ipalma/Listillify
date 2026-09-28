@@ -18,25 +18,34 @@ void main() {
     DependencyInjection.init(storage: mockStorage);
   });
 
-  testWidgets('ListillifyApp renders HomePage with UserSessionCard and opens ConfigDialog from AppBar',
+  testWidgets('ListillifyApp renders HomePage with UserSessionCard and PlaylistForm',
       (WidgetTester tester) async {
     await tester.pumpWidget(const ListillifyApp());
     await tester.pumpAndSettle();
 
     // Comprobamos elementos de la pantalla principal
     expect(find.text('Listillify'), findsOneWidget);
-    expect(find.text('Generador de Playlists para Spotify'), findsOneWidget);
     expect(find.byIcon(Icons.settings), findsOneWidget);
 
     // Comprobamos la tarjeta de sesión de usuario
     expect(find.text('No has iniciado sesión'), findsOneWidget);
     expect(find.text('Conectar'), findsOneWidget);
 
+    // Comprobamos el formulario de playlist
+    expect(find.text('Crear Nueva Playlist'), findsOneWidget);
+    expect(find.text('Nombre de la playlist'), findsOneWidget);
+    expect(find.text('Ejemplo'), findsOneWidget);
+
+    // Tocamos el botón de 'Ejemplo' para autocompletar canciones
+    await tester.tap(find.text('Ejemplo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Clásicos de Rock y Éxitos'), findsOneWidget);
+
     // Abrimos el diálogo de configuración desde el AppBar
     await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
 
-    // Verificamos que el modal de configuración de Spotify se muestra
     expect(find.text('Configuración de Spotify API'), findsOneWidget);
     expect(find.text('Spotify Client ID'), findsOneWidget);
   });
