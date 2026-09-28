@@ -1,4 +1,11 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:listillify/features/auth/domain/repositories/auth_repository.dart';
+import 'package:listillify/features/auth/domain/usecases/get_current_session_use_case.dart';
+import 'package:listillify/features/auth/domain/usecases/login_use_case.dart';
+import 'package:listillify/features/auth/domain/usecases/logout_use_case.dart';
+import 'package:listillify/features/auth/infrastructure/repositories/spotify_auth_repository.dart';
+import 'package:listillify/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:listillify/features/config/domain/repositories/config_repository.dart';
 import 'package:listillify/features/config/domain/usecases/get_api_config_use_case.dart';
 import 'package:listillify/features/config/domain/usecases/save_api_config_use_case.dart';
@@ -11,16 +18,43 @@ class DependencyInjection {
   DependencyInjection._();
 
   static late final FlutterSecureStorage secureStorage;
+  static late final http.Client httpClient;
+
+  // Config feature
   static late final ConfigRepository configRepository;
   static late final GetApiConfigUseCase getApiConfigUseCase;
   static late final SaveApiConfigUseCase saveApiConfigUseCase;
 
+  // Auth feature
+  static late final AuthRepository authRepository;
+  static late final LoginUseCase loginUseCase;
+  static late final GetCurrentSessionUseCase getCurrentSessionUseCase;
+  static late final LogoutUseCase logoutUseCase;
+
   /// Inicializa los adaptadores de infraestructura y casos de uso.
-  static void init({FlutterSecureStorage? storage}) {
+  static void init({
+    FlutterSecureStorage? storage,
+    http.Client? client,
+    AuthRepository? authRepo,
+    ConfigRepository? configRepo,
+  }) {
     secureStorage = storage ?? const FlutterSecureStorage();
-    configRepository = SecureConfigRepository(storage: secureStorage);
+    httpClient = client ?? http.Client();
+
+    // Config
+    configRepository = configRepo ?? SecureConfigRepository(storage: secureStorage);
     getApiConfigUseCase = GetApiConfigUseCase(configRepository);
     saveApiConfigUseCase = SaveApiConfigUseCase(configRepository);
+
+    // Auth
+    authRepository = authRepo ??
+        SpotifyAuthRepository(
+          httpClient: httpClient,
+          storage: secureStorage,
+        );
+    loginUseCase = LoginUseCase(authRepository);
+    getCurrentSessionUseCase = GetCurrentSessionUseCase(authRepository);
+    logoutUseCase = LogoutUseCase(authRepository);
   }
 
   /// Crea una nueva instancia de [ConfigCubit] con sus dependencias inyectadas.
@@ -28,6 +62,15 @@ class DependencyInjection {
     return ConfigCubit(
       getApiConfigUseCase: getApiConfigUseCase,
       saveApiConfigUseCase: saveApiConfigUseCase,
+    );
+  }
+
+  /// Crea una nueva instancia de [AuthCubit] con sus dependencias inyectadas.
+  static AuthCubit createAuthCubit() {
+    return AuthCubit(
+      loginUseCase: loginUseCase,
+      getCurrentSessionUseCase: getCurrentSessionUseCase,
+      logoutUseCase: logoutUseCase,
     );
   }
 }

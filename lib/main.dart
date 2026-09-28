@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:listillify/core/theme/app_theme.dart';
+import 'package:listillify/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:listillify/features/auth/presentation/widgets/user_session_card.dart';
 import 'package:listillify/features/config/presentation/cubit/config_cubit.dart';
 import 'package:listillify/features/config/presentation/widgets/config_dialog.dart';
 import 'package:listillify/injection.dart';
@@ -22,6 +24,9 @@ class ListillifyApp extends StatelessWidget {
         BlocProvider<ConfigCubit>(
           create: (_) => DependencyInjection.createConfigCubit()..loadConfig(),
         ),
+        BlocProvider<AuthCubit>(
+          create: (_) => DependencyInjection.createAuthCubit()..checkAuthStatus(),
+        ),
       ],
       child: MaterialApp(
         title: 'Listillify',
@@ -33,7 +38,7 @@ class ListillifyApp extends StatelessWidget {
   }
 }
 
-/// Pantalla principal provisional de Listillify con acceso a configuración y estado.
+/// Pantalla principal de Listillify con sesión de usuario y accesos.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -59,34 +64,37 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
-                Icons.library_music,
-                size: 72,
-                color: AppTheme.spotifyGreen,
+              // Tarjeta de estado de autenticación y sesión
+              const UserSessionCard(),
+              const SizedBox(height: 32),
+              const Center(
+                child: Icon(
+                  Icons.library_music,
+                  size: 64,
+                  color: AppTheme.spotifyGreen,
+                ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Generador de Playlists para Spotify',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
+              const Center(
+                child: Text(
+                  'Generador de Playlists para Spotify',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Configura tus credenciales de Spotify para comenzar a sincronizar listas.',
-                style: TextStyle(color: AppTheme.spotifyLightGrey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.key, color: Colors.black),
-                label: const Text('Configurar API'),
-                onPressed: () => ConfigDialog.show(context),
+              const Center(
+                child: Text(
+                  'Conecta tu cuenta y configura el Client ID para crear tus listas.',
+                  style: TextStyle(color: AppTheme.spotifyLightGrey),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
           ),
