@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:listillify/core/constants/spotify_constants.dart';
 import 'package:listillify/injection.dart';
 import 'package:listillify/main.dart';
 import 'package:mocktail/mocktail.dart';
@@ -13,24 +12,28 @@ void main() {
 
   setUp(() {
     mockStorage = MockFlutterSecureStorage();
-    when(() => mockStorage.read(key: SpotifyConstants.secureStorageClientIdKey))
+    when(() => mockStorage.read(key: any(named: 'key')))
         .thenAnswer((_) async => null);
 
     DependencyInjection.init(storage: mockStorage);
   });
 
-  testWidgets('ListillifyApp smoke test renders HomePage and opens ConfigDialog',
+  testWidgets('ListillifyApp renders HomePage with UserSessionCard and opens ConfigDialog from AppBar',
       (WidgetTester tester) async {
     await tester.pumpWidget(const ListillifyApp());
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     // Comprobamos elementos de la pantalla principal
     expect(find.text('Listillify'), findsOneWidget);
     expect(find.text('Generador de Playlists para Spotify'), findsOneWidget);
     expect(find.byIcon(Icons.settings), findsOneWidget);
 
-    // Tocamos el botón de Configurar API para abrir el diálogo
-    await tester.tap(find.text('Configurar API'));
+    // Comprobamos la tarjeta de sesión de usuario
+    expect(find.text('No has iniciado sesión'), findsOneWidget);
+    expect(find.text('Conectar'), findsOneWidget);
+
+    // Abrimos el diálogo de configuración desde el AppBar
+    await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
 
     // Verificamos que el modal de configuración de Spotify se muestra

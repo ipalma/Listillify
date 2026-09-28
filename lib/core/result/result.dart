@@ -45,6 +45,14 @@ final class Success<T> extends Result<T> {
 
   @override
   List<Object?> get props => [data];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Success && data == other.data);
+
+  @override
+  int get hashCode => data.hashCode;
 }
 
 /// Representa una operación fallida con su respectivo [Failure].
