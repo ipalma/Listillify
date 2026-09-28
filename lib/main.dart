@@ -5,6 +5,11 @@ import 'package:listillify/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:listillify/features/auth/presentation/widgets/user_session_card.dart';
 import 'package:listillify/features/config/presentation/cubit/config_cubit.dart';
 import 'package:listillify/features/config/presentation/widgets/config_dialog.dart';
+import 'package:listillify/features/playlist/presentation/cubit/playlist_cubit.dart';
+import 'package:listillify/features/playlist/presentation/cubit/playlist_state.dart';
+import 'package:listillify/features/playlist/presentation/widgets/playlist_form.dart';
+import 'package:listillify/features/playlist/presentation/widgets/playlist_preview_view.dart';
+import 'package:listillify/features/playlist/presentation/widgets/playlist_success_card.dart';
 import 'package:listillify/injection.dart';
 
 void main() {
@@ -27,6 +32,9 @@ class ListillifyApp extends StatelessWidget {
         BlocProvider<AuthCubit>(
           create: (_) => DependencyInjection.createAuthCubit()..checkAuthStatus(),
         ),
+        BlocProvider<PlaylistCubit>(
+          create: (_) => DependencyInjection.createPlaylistCubit(),
+        ),
       ],
       child: MaterialApp(
         title: 'Listillify',
@@ -38,7 +46,7 @@ class ListillifyApp extends StatelessWidget {
   }
 }
 
-/// Pantalla principal de Listillify con sesión de usuario y accesos.
+/// Pantalla principal de Listillify con sesión de usuario, formulario de playlist y previsualización.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -64,41 +72,38 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Tarjeta de estado de autenticación y sesión
-              const UserSessionCard(),
-              const SizedBox(height: 32),
-              const Center(
-                child: Icon(
-                  Icons.library_music,
-                  size: 64,
-                  color: AppTheme.spotifyGreen,
-                ),
+      body: BlocConsumer<PlaylistCubit, PlaylistState>(
+        listener: (context, state) {
+          if (state is PlaylistFailureState) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.redAccent,
               ),
-              const SizedBox(height: 16),
-              const Center(
-                child: Text(
-                  'Generador de Playlists para Spotify',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
+            );
+          }
+        },
+        builder: (context, playlistState) {
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Tarjeta de estado de autenticación y sesión
+                  const UserSessionCard(),
+                  const SizedBox(height: 24),
+                  // Flujo dinámico según el estado de la playlist
+                  switch (playlistState) {
+                    PlaylistPreviewReady() => PlaylistPreviewView(state: playlistState),
+                    PlaylistCreatedSuccess() => PlaylistSuccessCard(result: playlistState.result),
+                    _ => const PlaylistForm(),
+                  },
+                ],
               ),
-              const SizedBox(height: 8),
-              const Center(
-                child: Text(
-                  'Conecta tu cuenta y configura el Client ID para crear tus listas.',
-                  style: TextStyle(color: AppTheme.spotifyLightGrey),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
