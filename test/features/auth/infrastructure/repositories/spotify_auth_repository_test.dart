@@ -138,5 +138,26 @@ void main() {
       expect(result.isFailure, isTrue);
       expect(result.failureOrNull, isA<AuthFailure>());
     });
+
+    test('loginWithCredentials returns ValidationFailure when username or password is blank', () async {
+      final result = await repository.loginWithCredentials(username: '   ', password: '123');
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull, isA<ValidationFailure>());
+    });
+
+    test('loginWithCredentials creates and persists session for valid credentials', () async {
+      when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value')))
+          .thenAnswer((_) async => Future.value());
+
+      final result = await repository.loginWithCredentials(
+        username: 'juan_perez',
+        password: 'password123',
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.displayName, 'juan_perez');
+      verify(() => mockStorage.write(key: SpotifyConstants.secureStorageUserIdKey, value: 'juan_perez')).called(1);
+    });
   });
 }

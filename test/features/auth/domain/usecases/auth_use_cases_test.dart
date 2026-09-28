@@ -7,6 +7,7 @@ import 'package:listillify/features/auth/domain/repositories/auth_repository.dar
 import 'package:listillify/features/auth/domain/usecases/get_current_session_use_case.dart';
 import 'package:listillify/features/auth/domain/usecases/login_use_case.dart';
 import 'package:listillify/features/auth/domain/usecases/logout_use_case.dart';
+import 'package:listillify/features/auth/domain/usecases/login_with_credentials_use_case.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
@@ -14,12 +15,14 @@ class MockAuthRepository extends Mock implements AuthRepository {}
 void main() {
   late MockAuthRepository mockRepository;
   late LoginUseCase loginUseCase;
+  late LoginWithCredentialsUseCase loginWithCredentialsUseCase;
   late GetCurrentSessionUseCase getSessionUseCase;
   late LogoutUseCase logoutUseCase;
 
   setUp(() {
     mockRepository = MockAuthRepository();
     loginUseCase = LoginUseCase(mockRepository);
+    loginWithCredentialsUseCase = LoginWithCredentialsUseCase(mockRepository);
     getSessionUseCase = GetCurrentSessionUseCase(mockRepository);
     logoutUseCase = LogoutUseCase(mockRepository);
   });
@@ -88,6 +91,57 @@ void main() {
 
       expect(result, equals(const Success<void>(null)));
       verify(() => mockRepository.logout()).called(1);
+    });
+  });
+
+  group('LoginWithCredentialsUseCase', () {
+    final tSession = UserSession(
+      id: 'test_user',
+      displayName: 'test_user',
+      accessToken: 'token_abc',
+      expiresAt: DateTime.now().add(const Duration(days: 30)),
+    );
+
+    test('should return UserSession when repository loginWithCredentials succeeds', () async {
+      when(() => mockRepository.loginWithCredentials(
+            username: 'my_user',
+            password: 'my_password',
+          )).thenAnswer((_) async => Success(tSession));
+
+      final result = await loginWithCredentialsUseCase(
+        const LoginWithCredentialsParams(username: 'my_user', password: 'my_password'),
+      );
+
+      expect(result, equals(Success(tSession)));
+      verify(() => mockRepository.loginWithCredentials(
+            username: 'my_user',
+            password: 'my_password',
+          )).called(1);
+    });
+
+    test('should return ValidationFailure when username or password is empty', () async {
+      final result = await loginWithCredentialsUseCase(
+        const LoginWithCredentialsParams(username: '  ', password: 'secret'),
+      );
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull, isA<ValidationFailure>());
+      verifyZeroInteractions(mockRepository);
+    });
+
+    test('should propagate AuthFailure when repository loginWithCredentials fails', () async {
+      const failure = AuthFailure(message: 'Credenciales inválidas');
+      when(() => mockRepository.loginWithCredentials(
+            username: 'user',
+            password: 'wrong_password',
+          )).thenAnswer((_) async => const FailureResult(failure));
+
+      final result = await loginWithCredentialsUseCase(
+        const LoginWithCredentialsParams(username: 'user', password: 'wrong_password'),
+      );
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull?.message, 'Credenciales inválidas');
     });
   });
 }

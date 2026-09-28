@@ -12,11 +12,19 @@ import 'package:listillify/features/playlist/presentation/cubit/playlist_state.d
 import 'package:listillify/features/playlist/presentation/widgets/playlist_form.dart';
 import 'package:listillify/features/playlist/presentation/widgets/playlist_preview_view.dart';
 import 'package:listillify/features/playlist/presentation/widgets/playlist_success_card.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:listillify/core/constants/spotify_constants.dart';
 import 'package:listillify/injection.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  DependencyInjection.init();
+  await Hive.initFlutter();
+  final configBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveConfigBox);
+  final authBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveAuthBox);
+  DependencyInjection.init(
+    injectedConfigBox: configBox,
+    injectedAuthBox: authBox,
+  );
   runApp(const ListillifyApp());
 }
 

@@ -11,12 +11,16 @@ import 'package:listillify/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:listillify/features/auth/presentation/cubit/auth_state.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:listillify/features/auth/domain/usecases/login_with_credentials_use_case.dart';
+
 class MockLoginUseCase extends Mock implements LoginUseCase {}
+class MockLoginWithCredentialsUseCase extends Mock implements LoginWithCredentialsUseCase {}
 class MockGetCurrentSessionUseCase extends Mock implements GetCurrentSessionUseCase {}
 class MockLogoutUseCase extends Mock implements LogoutUseCase {}
 
 void main() {
   late MockLoginUseCase mockLoginUseCase;
+  late MockLoginWithCredentialsUseCase mockLoginWithCredentialsUseCase;
   late MockGetCurrentSessionUseCase mockGetSessionUseCase;
   late MockLogoutUseCase mockLogoutUseCase;
   late AuthCubit cubit;
@@ -31,15 +35,18 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const NoParams());
     registerFallbackValue(const LoginParams(clientId: 'id'));
+    registerFallbackValue(const LoginWithCredentialsParams(username: 'u', password: 'p'));
   });
 
   setUp(() {
     mockLoginUseCase = MockLoginUseCase();
+    mockLoginWithCredentialsUseCase = MockLoginWithCredentialsUseCase();
     mockGetSessionUseCase = MockGetCurrentSessionUseCase();
     mockLogoutUseCase = MockLogoutUseCase();
 
     cubit = AuthCubit(
       loginUseCase: mockLoginUseCase,
+      loginWithCredentialsUseCase: mockLoginWithCredentialsUseCase,
       getCurrentSessionUseCase: mockGetSessionUseCase,
       logoutUseCase: mockLogoutUseCase,
     );
@@ -121,6 +128,34 @@ void main() {
       expect: () => [
         const AuthLoading(message: 'Cerrando sesión...'),
         const Unauthenticated(),
+      ],
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'loginWithCredentials emits [AuthLoading, Authenticated] on success',
+      build: () {
+        when(() => mockLoginWithCredentialsUseCase(any()))
+            .thenAnswer((_) async => Success(tSession));
+        return cubit;
+      },
+      act: (c) => c.loginWithCredentials(username: 'test_user', password: 'password123'),
+      expect: () => [
+        const AuthLoading(message: 'Iniciando sesión con usuario y contraseña...'),
+        Authenticated(tSession),
+      ],
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'loginWithCredentials emits [AuthLoading, AuthError] when validation or login fails',
+      build: () {
+        when(() => mockLoginWithCredentialsUseCase(any()))
+            .thenAnswer((_) async => const FailureResult(ValidationFailure(message: 'Campos requeridos')));
+        return cubit;
+      },
+      act: (c) => c.loginWithCredentials(username: '', password: ''),
+      expect: () => [
+        const AuthLoading(message: 'Iniciando sesión con usuario y contraseña...'),
+        const AuthError('Campos requeridos'),
       ],
     );
   });

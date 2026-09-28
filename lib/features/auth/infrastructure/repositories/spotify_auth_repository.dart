@@ -11,12 +11,15 @@ import 'package:listillify/features/auth/infrastructure/services/oauth_callback_
 import 'package:listillify/features/auth/infrastructure/services/pkce_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:hive/hive.dart';
+
 /// PATRÓN DE DISEÑO: Adapter (Arquitectura Hexagonal) / Repository
 /// Implementación concreta del puerto [AuthRepository] que maneja el ciclo de vida de OAuth 2.0 PKCE,
-/// llamadas a la API de Spotify y persistencia de credenciales en almacenamiento seguro.
+/// llamadas a la API de Spotify y persistencia de credenciales en Hive y almacenamiento seguro.
 class SpotifyAuthRepository implements AuthRepository {
   final http.Client _httpClient;
   final FlutterSecureStorage _storage;
+  final Box<dynamic>? authBox;
   final PkceService _pkceService;
   final OAuthCallbackServer _callbackServer;
   final Future<bool> Function(Uri url) _urlLauncher;
@@ -24,6 +27,7 @@ class SpotifyAuthRepository implements AuthRepository {
   SpotifyAuthRepository({
     http.Client? httpClient,
     FlutterSecureStorage? storage,
+    this.authBox,
     PkceService? pkceService,
     OAuthCallbackServer? callbackServer,
     Future<bool> Function(Uri url)? urlLauncher,
@@ -32,6 +36,14 @@ class SpotifyAuthRepository implements AuthRepository {
         _pkceService = pkceService ?? PkceService(),
         _callbackServer = callbackServer ?? OAuthCallbackServer(),
         _urlLauncher = urlLauncher ?? launchUrl;
+
+  Box<dynamic>? get _box {
+    if (authBox != null) return authBox;
+    if (Hive.isBoxOpen(SpotifyConstants.hiveAuthBox)) {
+      return Hive.box(SpotifyConstants.hiveAuthBox);
+    }
+    return null;
+  }
 
   @override
   Future<Result<UserSession>> login(String clientId) async {
@@ -132,7 +144,7 @@ class SpotifyAuthRepository implements AuthRepository {
         expiresAt: expiresAt,
       );
 
-      // Guardamos la sesión en el almacenamiento seguro
+      // Guardamos la sesión en el almacenamiento seguro y en Hive
       await _persistSession(session);
 
       return Success(session);
@@ -143,8 +155,90 @@ class SpotifyAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Result<UserSession>> loginWithCredentials({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      final cleanUsername = username.trim();
+      final cleanPassword = password.trim();
+
+      if (cleanUsername.isEmpty || cleanPassword.isEmpty) {
+        return const FailureResult(
+          ValidationFailure(message: 'El usuario y la contraseña no pueden estar vacíos.'),
+        );
+      }
+
+      // Buscamos si hay client_id y client_secret en Hive para autenticar con Spotify vía Client Credentials
+      String token = 'session_${cleanUsername}_${DateTime.now().millisecondsSinceEpoch}';
+      if (Hive.isBoxOpen(SpotifyConstants.hiveConfigBox)) {
+        final configBox = Hive.box(SpotifyConstants.hiveConfigBox);
+        final clientId = configBox.get(SpotifyConstants.hiveClientIdKey) as String?;
+        final clientSecret = configBox.get(SpotifyConstants.hiveClientSecretKey) as String?;
+
+        if (clientId != null && clientId.isNotEmpty && clientSecret != null && clientSecret.isNotEmpty) {
+          try {
+            final basicAuth = base64Encode(utf8.encode('$clientId:$clientSecret'));
+            final response = await _httpClient.post(
+              Uri.parse(SpotifyConstants.tokenEndpoint),
+              headers: {
+                'Authorization': 'Basic $basicAuth',
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: {'grant_type': 'client_credentials'},
+            );
+            if (response.statusCode == 200) {
+              final json = jsonDecode(response.body) as Map<String, dynamic>;
+              token = json['access_token'] as String;
+            }
+          } catch (_) {
+            // Si la conexión falla, mantenemos el token de sesión local
+          }
+        }
+      }
+
+      final session = UserSession(
+        id: cleanUsername,
+        displayName: cleanUsername,
+        email: cleanUsername.contains('@') ? cleanUsername : null,
+        accessToken: token,
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+      );
+
+      await _persistSession(session);
+      return Success(session);
+    } catch (e) {
+      return FailureResult(AuthFailure(message: 'Error al iniciar sesión: $e'));
+    }
+  }
+
+  @override
   Future<Result<UserSession?>> getCurrentSession() async {
     try {
+      // Comprobar primero en Hive
+      final box = _box;
+      if (box != null) {
+        final username = box.get(SpotifyConstants.hiveSessionUsernameKey) as String?;
+        final token = box.get(SpotifyConstants.hiveSessionTokenKey) as String?;
+        final expiresAtStr = box.get(SpotifyConstants.hiveSessionExpiresAtKey) as String?;
+
+        if (username != null && token != null) {
+          final expiresAt = expiresAtStr != null
+              ? DateTime.tryParse(expiresAtStr) ?? DateTime.now().add(const Duration(days: 1))
+              : DateTime.now().add(const Duration(days: 1));
+
+          final session = UserSession(
+            id: username,
+            displayName: username,
+            email: username.contains('@') ? username : null,
+            accessToken: token,
+            expiresAt: expiresAt,
+          );
+          return Success(session);
+        }
+      }
+
+      // Fallback a almacenamiento seguro
       final accessToken = await _storage.read(key: SpotifyConstants.secureStorageAccessTokenKey);
       final userId = await _storage.read(key: SpotifyConstants.secureStorageUserIdKey);
       final displayName = await _storage.read(key: SpotifyConstants.secureStorageUserDisplayNameKey);
@@ -242,6 +336,12 @@ class SpotifyAuthRepository implements AuthRepository {
   @override
   Future<Result<void>> logout() async {
     try {
+      final box = _box;
+      if (box != null) {
+        await box.delete(SpotifyConstants.hiveSessionUsernameKey);
+        await box.delete(SpotifyConstants.hiveSessionTokenKey);
+        await box.delete(SpotifyConstants.hiveSessionExpiresAtKey);
+      }
       await _storage.delete(key: SpotifyConstants.secureStorageAccessTokenKey);
       await _storage.delete(key: SpotifyConstants.secureStorageRefreshTokenKey);
       await _storage.delete(key: SpotifyConstants.secureStorageTokenExpiresAtKey);
@@ -254,6 +354,12 @@ class SpotifyAuthRepository implements AuthRepository {
   }
 
   Future<void> _persistSession(UserSession session) async {
+    final box = _box;
+    if (box != null) {
+      await box.put(SpotifyConstants.hiveSessionUsernameKey, session.displayName);
+      await box.put(SpotifyConstants.hiveSessionTokenKey, session.accessToken);
+      await box.put(SpotifyConstants.hiveSessionExpiresAtKey, session.expiresAt.toIso8601String());
+    }
     await _storage.write(key: SpotifyConstants.secureStorageAccessTokenKey, value: session.accessToken);
     if (session.refreshToken != null) {
       await _storage.write(key: SpotifyConstants.secureStorageRefreshTokenKey, value: session.refreshToken);

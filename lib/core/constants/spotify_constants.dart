@@ -34,4 +34,14 @@ abstract final class SpotifyConstants {
   static const String secureStorageTokenExpiresAtKey = 'spotify_token_expires_at';
   static const String secureStorageUserIdKey = 'spotify_user_id';
   static const String secureStorageUserDisplayNameKey = 'spotify_user_display_name';
+
+  // Cajas y claves para persistencia local en Hive
+  static const String hiveConfigBox = 'listillify_config';
+  static const String hiveAuthBox = 'listillify_auth';
+  static const String hiveClientIdKey = 'client_id';
+  static const String hiveClientSecretKey = 'client_secret';
+  static const String hiveSessionUsernameKey = 'session_username';
+  static const String hiveSessionPasswordKey = 'session_password';
+  static const String hiveSessionTokenKey = 'session_token';
+  static const String hiveSessionExpiresAtKey = 'session_expires_at';
 }
