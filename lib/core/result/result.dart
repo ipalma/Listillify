@@ -55,4 +55,12 @@ final class FailureResult<T> extends Result<T> {
 
   @override
   List<Object?> get props => [failure];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FailureResult && failure == other.failure);
+
+  @override
+  int get hashCode => failure.hashCode;
 }
