@@ -277,7 +277,8 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
   }) async {
     try {
       int totalAdded = 0;
-      final addUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/playlists/$playlistId/tracks');
+      final itemsUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/playlists/$playlistId/items');
+      final tracksUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/playlists/$playlistId/tracks');
 
       // PATRÓN DE DISEÑO: Batch Processing / Chunking
       // La API de Spotify limita la adición a un máximo de 100 canciones por petición HTTP
@@ -287,14 +288,26 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
           min(i + SpotifyConstants.maxTracksPerBatch, trackUris.length),
         );
 
-        final response = await _httpClient.post(
-          addUri,
+        // Spotify Web API migró /tracks a /items. Usamos /items con fallback a /tracks
+        var response = await _httpClient.post(
+          itemsUri,
           headers: {
             'Authorization': 'Bearer $accessToken',
             'Content-Type': 'application/json',
           },
           body: jsonEncode({'uris': chunk}),
         );
+
+        if (response.statusCode == 404) {
+          response = await _httpClient.post(
+            tracksUri,
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'uris': chunk}),
+          );
+        }
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           totalAdded += chunk.length;
