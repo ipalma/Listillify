@@ -1,11 +1,16 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:listillify/core/constants/spotify_constants.dart';
 import 'package:listillify/core/errors/failures.dart';
+import 'package:listillify/core/result/result.dart';
+import 'package:listillify/features/config/domain/entities/api_config.dart';
+import 'package:listillify/features/config/domain/repositories/config_repository.dart';
 import 'package:listillify/features/playlist/infrastructure/repositories/spotify_playlist_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockHttpClient extends Mock implements http.Client {}
+class MockConfigRepository extends Mock implements ConfigRepository {}
 
 void main() {
   late MockHttpClient mockClient;
@@ -59,6 +64,41 @@ void main() {
       expect(track.artist, equals('Pink Floyd'));
       expect(track.albumName, equals('Wish You Were Here'));
       expect(track.isFound, isTrue);
+    });
+
+    test('searchTrack with local session token resolves real token using ConfigRepository', () async {
+      final mockConfigRepo = MockConfigRepository();
+      final repoWithConfig = SpotifyPlaylistRepository(httpClient: mockClient, configRepository: mockConfigRepo);
+
+      when(() => mockConfigRepo.getConfig()).thenAnswer(
+        (_) async => const Success(ApiConfig(clientId: 'cid', clientSecret: 'csec')),
+      );
+
+      when(() => mockClient.post(
+            Uri.parse(SpotifyConstants.tokenEndpoint),
+            headers: any(named: 'headers'),
+            body: {'grant_type': 'client_credentials'},
+          )).thenAnswer((_) async => http.Response(
+            '{"access_token": "spotify_real_token", "expires_in": 3600}',
+            200,
+          ));
+
+      when(() => mockClient.get(
+            any(),
+            headers: {'Authorization': 'Bearer spotify_real_token'},
+          )).thenAnswer((_) async => http.Response('{"tracks": {"items": []}}', 200));
+
+      final result = await repoWithConfig.searchTrack(
+        query: 'Pink Floyd',
+        accessToken: 'session_evilastaroth@gmail.com_12345',
+      );
+
+      expect(result.isSuccess, isTrue);
+      verify(() => mockClient.post(
+            Uri.parse(SpotifyConstants.tokenEndpoint),
+            headers: any(named: 'headers'),
+            body: {'grant_type': 'client_credentials'},
+          )).called(1);
     });
 
     test('searchTrack handles 429 RateLimitFailure with retry-after header', () async {

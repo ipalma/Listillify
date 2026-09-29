@@ -71,6 +71,23 @@ void main() {
       expect(tracks.first.isFound, isFalse);
     });
 
+    test('returns AuthFailure immediately when search fails with AuthFailure', () async {
+      when(() => mockRepository.searchTrack(
+            query: any(named: 'query'),
+            accessToken: any(named: 'accessToken'),
+          )).thenAnswer((_) async => const FailureResult(AuthFailure(message: 'Unauthorized', statusCode: 401)));
+
+      final result = await searchUseCase(
+        const ParseAndSearchTracksParams(
+          rawText: 'Queen - Bohemian Rhapsody',
+          accessToken: 'token_123',
+        ),
+      );
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull, isA<AuthFailure>());
+    });
+
     test('returns ValidationFailure when input text is empty', () async {
       final result = await searchUseCase(
         const ParseAndSearchTracksParams(

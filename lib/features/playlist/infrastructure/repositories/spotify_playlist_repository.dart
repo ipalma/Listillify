@@ -4,17 +4,67 @@ import 'package:http/http.dart' as http;
 import 'package:listillify/core/constants/spotify_constants.dart';
 import 'package:listillify/core/errors/failures.dart';
 import 'package:listillify/core/result/result.dart';
+import 'package:listillify/features/config/domain/repositories/config_repository.dart';
 import 'package:listillify/features/playlist/domain/entities/track_item.dart';
 import 'package:listillify/features/playlist/domain/repositories/playlist_repository.dart';
 
 /// PATRÓN DE DISEÑO: Adapter (Arquitectura Hexagonal) / Repository
 /// Implementación de [PlaylistRepository] que se comunica con los endpoints de la API Web de Spotify,
-/// gestionando serialización JSON, batching de 100 canciones por petición y control de Rate Limiting.
+/// gestionando serialización JSON, batching de 100 canciones por petición, renovación de tokens y control de Rate Limiting.
 class SpotifyPlaylistRepository implements PlaylistRepository {
   final http.Client _httpClient;
+  final ConfigRepository? configRepository;
+  String? _cachedClientToken;
+  DateTime? _cachedTokenExpiresAt;
 
-  SpotifyPlaylistRepository({http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  SpotifyPlaylistRepository({
+    http.Client? httpClient,
+    this.configRepository,
+  }) : _httpClient = httpClient ?? http.Client();
+
+  /// Obtiene un token válido de Spotify usando Client Credentials si el token provisto es local o inválido.
+  Future<String> _resolveToken(String token) async {
+    if (token.isNotEmpty && !token.startsWith('session_')) {
+      return token;
+    }
+
+    if (_cachedClientToken != null &&
+        _cachedTokenExpiresAt != null &&
+        DateTime.now().isBefore(_cachedTokenExpiresAt!)) {
+      return _cachedClientToken!;
+    }
+
+    if (configRepository != null) {
+      final configResult = await configRepository!.getConfig();
+      final config = configResult.dataOrNull;
+      if (config != null && config.isValid) {
+        try {
+          final basicAuth = base64Encode(utf8.encode('${config.clientId}:${config.clientSecret}'));
+          final response = await _httpClient.post(
+            Uri.parse(SpotifyConstants.tokenEndpoint),
+            headers: {
+              'Authorization': 'Basic $basicAuth',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: {'grant_type': 'client_credentials'},
+          );
+
+          if (response.statusCode == 200) {
+            final json = jsonDecode(response.body) as Map<String, dynamic>;
+            final newToken = json['access_token'] as String;
+            final expiresIn = json['expires_in'] as int? ?? 3600;
+            _cachedClientToken = newToken;
+            _cachedTokenExpiresAt = DateTime.now().add(Duration(seconds: expiresIn - 60));
+            return newToken;
+          }
+        } catch (_) {
+          // Si falla la petición de token, devolvemos el original
+        }
+      }
+    }
+
+    return token;
+  }
 
   @override
   Future<Result<TrackItem?>> searchTrack({
@@ -22,15 +72,28 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
     required String accessToken,
   }) async {
     try {
+      var effectiveToken = await _resolveToken(accessToken);
       final encodedQuery = Uri.encodeComponent(query);
       final searchUri = Uri.parse(
         '${SpotifyConstants.apiBaseUrl}/search?q=$encodedQuery&type=track,episode&limit=1',
       );
 
-      final response = await _httpClient.get(
+      var response = await _httpClient.get(
         searchUri,
-        headers: {'Authorization': 'Bearer $accessToken'},
+        headers: {'Authorization': 'Bearer $effectiveToken'},
       );
+
+      // Si devuelve 401 y tenemos configuración, intentamos invalidar caché y reintentar
+      if (response.statusCode == 401 && configRepository != null) {
+        _cachedClientToken = null;
+        effectiveToken = await _resolveToken('');
+        if (effectiveToken.isNotEmpty && !effectiveToken.startsWith('session_')) {
+          response = await _httpClient.get(
+            searchUri,
+            headers: {'Authorization': 'Bearer $effectiveToken'},
+          );
+        }
+      }
 
       if (response.statusCode == 429) {
         final retryAfter = int.tryParse(response.headers['retry-after'] ?? '5') ?? 5;
@@ -99,10 +162,38 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
       final endpoint = type == 'episode' ? 'episodes' : 'tracks';
       final requestUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/$endpoint/$id');
 
-      final response = await _httpClient.get(
+      var effectiveToken = await _resolveToken(accessToken);
+      var response = await _httpClient.get(
         requestUri,
-        headers: {'Authorization': 'Bearer $accessToken'},
+        headers: {'Authorization': 'Bearer $effectiveToken'},
       );
+
+      if (response.statusCode == 401 && configRepository != null) {
+        _cachedClientToken = null;
+        effectiveToken = await _resolveToken('');
+        if (effectiveToken.isNotEmpty && !effectiveToken.startsWith('session_')) {
+          response = await _httpClient.get(
+            requestUri,
+            headers: {'Authorization': 'Bearer $effectiveToken'},
+          );
+        }
+      }
+
+      if (response.statusCode == 429) {
+        final retryAfter = int.tryParse(response.headers['retry-after'] ?? '5') ?? 5;
+        return FailureResult(
+          RateLimitFailure(
+            message: 'Spotify API rate limit excedido. Espera $retryAfter segundos.',
+            retryAfterSeconds: retryAfter,
+          ),
+        );
+      }
+
+      if (response.statusCode == 401) {
+        return const FailureResult(
+          AuthFailure(message: 'Token de acceso expirado o inválido.', statusCode: 401),
+        );
+      }
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;

@@ -18,13 +18,23 @@ import 'package:listillify/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  final configBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveConfigBox);
-  final authBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveAuthBox);
+
+  Box<dynamic>? configBox;
+  Box<dynamic>? authBox;
+
+  try {
+    await Hive.initFlutter();
+    configBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveConfigBox);
+    authBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveAuthBox);
+  } catch (e, stack) {
+    debugPrint('Aviso al inicializar Hive: $e\n$stack');
+  }
+
   DependencyInjection.init(
     injectedConfigBox: configBox,
     injectedAuthBox: authBox,
   );
+
   runApp(const ListillifyApp());
 }
 

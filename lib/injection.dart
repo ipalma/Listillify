@@ -86,7 +86,11 @@ class DependencyInjection {
     logoutUseCase = LogoutUseCase(authRepository);
 
     // Playlist
-    playlistRepository = playlistRepo ?? SpotifyPlaylistRepository(httpClient: httpClient);
+    playlistRepository = playlistRepo ??
+        SpotifyPlaylistRepository(
+          httpClient: httpClient,
+          configRepository: configRepository,
+        );
     parseAndSearchTracksUseCase = ParseAndSearchTracksUseCase(
       playlistRepository: playlistRepository,
       textParser: PlaylistTextParser(),

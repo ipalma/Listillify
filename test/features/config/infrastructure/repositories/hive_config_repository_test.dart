@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:listillify/core/constants/spotify_constants.dart';
@@ -7,14 +8,23 @@ import 'package:listillify/features/config/infrastructure/repositories/hive_conf
 import 'package:mocktail/mocktail.dart';
 
 class MockBox extends Mock implements Box<dynamic> {}
+class MockFlutterSecureStorage extends Mock implements FlutterSecureStorage {}
 
 void main() {
   late MockBox mockBox;
+  late MockFlutterSecureStorage mockStorage;
   late HiveConfigRepository repository;
 
   setUp(() {
     mockBox = MockBox();
-    repository = HiveConfigRepository(box: mockBox);
+    mockStorage = MockFlutterSecureStorage();
+    repository = HiveConfigRepository(box: mockBox, storage: mockStorage);
+
+    when(() => mockBox.flush()).thenAnswer((_) async {});
+    when(() => mockStorage.read(key: any(named: 'key'))).thenAnswer((_) async => null);
+    when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value')))
+        .thenAnswer((_) async {});
+    when(() => mockStorage.delete(key: any(named: 'key'))).thenAnswer((_) async {});
   });
 
   group('HiveConfigRepository', () {
@@ -57,6 +67,7 @@ void main() {
       expect(result.isSuccess, isTrue);
       verify(() => mockBox.put(SpotifyConstants.hiveClientIdKey, 'my_id')).called(1);
       verify(() => mockBox.put(SpotifyConstants.hiveClientSecretKey, 'my_secret')).called(1);
+      verify(() => mockBox.flush()).called(1);
     });
 
     test('clearConfig should delete client id and secret from Hive box', () async {
@@ -67,6 +78,7 @@ void main() {
       expect(result.isSuccess, isTrue);
       verify(() => mockBox.delete(SpotifyConstants.hiveClientIdKey)).called(1);
       verify(() => mockBox.delete(SpotifyConstants.hiveClientSecretKey)).called(1);
+      verify(() => mockBox.flush()).called(1);
     });
   });
 }

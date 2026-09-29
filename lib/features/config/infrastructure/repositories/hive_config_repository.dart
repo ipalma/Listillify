@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive/hive.dart';
 import 'package:listillify/core/constants/spotify_constants.dart';
 import 'package:listillify/core/errors/failures.dart';
@@ -6,12 +7,17 @@ import 'package:listillify/features/config/domain/entities/api_config.dart';
 import 'package:listillify/features/config/domain/repositories/config_repository.dart';
 
 /// PATRÓN DE DISEÑO: Adapter (Arquitectura Hexagonal)
-/// Implementa el puerto [ConfigRepository] utilizando Hive como motor de persistencia local en fichero NoSQL.
-/// Guarda de manera persistente en disco el Client ID y el Client Secret de Spotify.
+/// Implementa el puerto [ConfigRepository] utilizando Hive como motor de persistencia local en fichero NoSQL,
+/// con sincronización y fallback automático hacia [FlutterSecureStorage].
 class HiveConfigRepository implements ConfigRepository {
   final Box<dynamic>? _injectedBox;
+  final FlutterSecureStorage _storage;
 
-  HiveConfigRepository({Box<dynamic>? box}) : _injectedBox = box;
+  HiveConfigRepository({
+    Box<dynamic>? box,
+    FlutterSecureStorage? storage,
+  })  : _injectedBox = box,
+        _storage = storage ?? const FlutterSecureStorage();
 
   Box<dynamic> get _box {
     if (_injectedBox != null) return _injectedBox;
@@ -25,8 +31,21 @@ class HiveConfigRepository implements ConfigRepository {
   Future<Result<ApiConfig>> getConfig() async {
     try {
       final box = _box;
-      final clientId = box.get(SpotifyConstants.hiveClientIdKey) as String?;
-      final clientSecret = box.get(SpotifyConstants.hiveClientSecretKey) as String?;
+      String? clientId = box.get(SpotifyConstants.hiveClientIdKey) as String?;
+      String? clientSecret = box.get(SpotifyConstants.hiveClientSecretKey) as String?;
+
+      // Fallback a almacenamiento seguro si Hive aún está vacío
+      if (clientId == null || clientId.trim().isEmpty) {
+        clientId = await _storage.read(key: SpotifyConstants.secureStorageClientIdKey);
+        clientSecret = await _storage.read(key: SpotifyConstants.secureStorageClientSecretKey);
+
+        if (clientId != null && clientId.trim().isNotEmpty) {
+          // Sincronizamos hacia Hive
+          await box.put(SpotifyConstants.hiveClientIdKey, clientId.trim());
+          await box.put(SpotifyConstants.hiveClientSecretKey, clientSecret?.trim() ?? '');
+          await box.flush();
+        }
+      }
 
       if (clientId == null || clientId.trim().isEmpty) {
         return const Success(ApiConfig.empty());
@@ -49,8 +68,17 @@ class HiveConfigRepository implements ConfigRepository {
   Future<Result<void>> saveConfig(ApiConfig config) async {
     try {
       final box = _box;
-      await box.put(SpotifyConstants.hiveClientIdKey, config.clientId.trim());
-      await box.put(SpotifyConstants.hiveClientSecretKey, config.clientSecret.trim());
+      final cleanId = config.clientId.trim();
+      final cleanSecret = config.clientSecret.trim();
+
+      await box.put(SpotifyConstants.hiveClientIdKey, cleanId);
+      await box.put(SpotifyConstants.hiveClientSecretKey, cleanSecret);
+      await box.flush();
+
+      // Sincronizamos en segundo plano hacia secure storage
+      await _storage.write(key: SpotifyConstants.secureStorageClientIdKey, value: cleanId);
+      await _storage.write(key: SpotifyConstants.secureStorageClientSecretKey, value: cleanSecret);
+
       return const Success(null);
     } catch (e) {
       return FailureResult(
@@ -65,6 +93,11 @@ class HiveConfigRepository implements ConfigRepository {
       final box = _box;
       await box.delete(SpotifyConstants.hiveClientIdKey);
       await box.delete(SpotifyConstants.hiveClientSecretKey);
+      await box.flush();
+
+      await _storage.delete(key: SpotifyConstants.secureStorageClientIdKey);
+      await _storage.delete(key: SpotifyConstants.secureStorageClientSecretKey);
+
       return const Success(null);
     } catch (e) {
       return FailureResult(

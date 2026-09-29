@@ -77,19 +77,20 @@ class ParseAndSearchTracksUseCase
         );
       }
 
-      searchResult.when(
-        onSuccess: (track) {
-          if (track != null) {
-            tracks.add(track);
-          } else {
-            tracks.add(TrackItem.notFound(item.query));
-          }
-        },
-        onFailure: (failure) {
-          // Si una pista falla en búsqueda, la marcamos como no encontrada para continuar con el resto
+      if (searchResult.isFailure) {
+        final failure = searchResult.failureOrNull;
+        if (failure is AuthFailure || failure is RateLimitFailure) {
+          return FailureResult(failure!);
+        }
+        tracks.add(TrackItem.notFound(item.query));
+      } else {
+        final track = searchResult.dataOrNull;
+        if (track != null) {
+          tracks.add(track);
+        } else {
           tracks.add(TrackItem.notFound(item.query));
-        },
-      );
+        }
+      }
     }
 
     return Success(tracks);
