@@ -28,10 +28,13 @@ class ConfigCubit extends Cubit<ConfigState> {
     );
   }
 
-  /// Guarda una nueva configuración con el [clientId] proporcionado.
-  Future<void> saveConfig(String clientId) async {
+  /// Guarda una nueva configuración con el [clientId] y [clientSecret] proporcionados.
+  Future<void> saveConfig({required String clientId, required String clientSecret}) async {
     emit(const ConfigLoading());
-    final config = ApiConfig(clientId: clientId.trim());
+    final config = ApiConfig(
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+    );
 
     final result = await saveApiConfigUseCase(SaveApiConfigParams(config: config));
 

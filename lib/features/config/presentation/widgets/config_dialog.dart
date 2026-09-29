@@ -5,8 +5,7 @@ import 'package:listillify/core/theme/app_theme.dart';
 import 'package:listillify/features/config/presentation/cubit/config_cubit.dart';
 import 'package:listillify/features/config/presentation/cubit/config_state.dart';
 
-/// Diálogo modal interactivo para configurar el Client ID de Spotify.
-/// Permite al usuario introducir y guardar su credencial de la API de Spotify.
+/// Diálogo modal interactivo para configurar el Client ID y Client Secret de Spotify.
 class ConfigDialog extends StatefulWidget {
   const ConfigDialog({super.key});
 
@@ -31,11 +30,14 @@ class ConfigDialog extends StatefulWidget {
 
 class _ConfigDialogState extends State<ConfigDialog> {
   final TextEditingController _clientIdController = TextEditingController();
+  final TextEditingController _clientSecretController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _obscureSecret = true;
 
   @override
   void dispose() {
     _clientIdController.dispose();
+    _clientSecretController.dispose();
     super.dispose();
   }
 
@@ -45,10 +47,11 @@ class _ConfigDialogState extends State<ConfigDialog> {
       listener: (context, state) {
         if (state is ConfigLoaded) {
           _clientIdController.text = state.config.clientId;
+          _clientSecretController.text = state.config.clientSecret;
         } else if (state is ConfigSavedSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Configuración de Spotify guardada correctamente.'),
+              content: Text('Credenciales de Spotify guardadas correctamente.'),
               backgroundColor: AppTheme.spotifyGreen,
             ),
           );
@@ -72,7 +75,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
               Icon(Icons.settings, color: AppTheme.spotifyGreen),
               SizedBox(width: 10),
               Text(
-                'Configuración de Spotify API',
+                'Credenciales de Spotify API',
                 style: TextStyle(color: AppTheme.spotifyWhite, fontSize: 18),
               ),
             ],
@@ -85,7 +88,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Para utilizar Listillify, introduce el Client ID de tu aplicación creada en el Spotify Developer Dashboard.',
+                    'Introduce el Client ID y Client Secret de tu aplicación creada en el Spotify Developer Dashboard.',
                     style: TextStyle(color: AppTheme.spotifyLightGrey, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
@@ -95,11 +98,35 @@ class _ConfigDialogState extends State<ConfigDialog> {
                     decoration: const InputDecoration(
                       labelText: 'Spotify Client ID',
                       hintText: 'Ej. 3f1a2b4c5d6e7f8a9b0c...',
-                      prefixIcon: Icon(Icons.key, color: AppTheme.spotifyGreen),
+                      prefixIcon: Icon(Icons.vpn_key, color: AppTheme.spotifyGreen),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Por favor, ingresa el Client ID.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _clientSecretController,
+                    enabled: !isLoading,
+                    obscureText: _obscureSecret,
+                    decoration: InputDecoration(
+                      labelText: 'Spotify Client Secret',
+                      hintText: '••••••••••••••••••••••••••••••••',
+                      prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.spotifyGreen),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureSecret ? Icons.visibility_off : Icons.visibility,
+                          color: AppTheme.spotifyLightGrey,
+                        ),
+                        onPressed: () => setState(() => _obscureSecret = !_obscureSecret),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Por favor, ingresa el Client Secret.';
                       }
                       return null;
                     },
@@ -149,7 +176,10 @@ class _ConfigDialogState extends State<ConfigDialog> {
                   ? null
                   : () {
                       if (_formKey.currentState?.validate() ?? false) {
-                        context.read<ConfigCubit>().saveConfig(_clientIdController.text);
+                        context.read<ConfigCubit>().saveConfig(
+                              clientId: _clientIdController.text,
+                              clientSecret: _clientSecretController.text,
+                            );
                       }
                     },
               child: isLoading

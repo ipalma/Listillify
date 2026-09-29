@@ -18,6 +18,12 @@ import 'package:listillify/features/playlist/domain/usecases/parse_and_search_tr
 import 'package:listillify/features/playlist/infrastructure/repositories/spotify_playlist_repository.dart';
 import 'package:listillify/features/playlist/presentation/cubit/playlist_cubit.dart';
 
+import 'package:hive/hive.dart';
+import 'package:listillify/core/constants/spotify_constants.dart';
+import 'package:listillify/core/network/logging_http_client.dart';
+import 'package:listillify/features/auth/domain/usecases/login_with_credentials_use_case.dart';
+import 'package:listillify/features/config/infrastructure/repositories/hive_config_repository.dart';
+
 /// PATRÓN DE DISEÑO: Service Locator / Composition Root / Dependency Injection
 /// Gestiona la creación e inyección de dependencias para asegurar bajo acoplamiento (SOLID D).
 class DependencyInjection {
@@ -25,6 +31,8 @@ class DependencyInjection {
 
   static late final FlutterSecureStorage secureStorage;
   static late final http.Client httpClient;
+  static Box<dynamic>? configBox;
+  static Box<dynamic>? authBox;
 
   // Config feature
   static late final ConfigRepository configRepository;
@@ -34,6 +42,7 @@ class DependencyInjection {
   // Auth feature
   static late final AuthRepository authRepository;
   static late final LoginUseCase loginUseCase;
+  static late final LoginWithCredentialsUseCase loginWithCredentialsUseCase;
   static late final GetCurrentSessionUseCase getCurrentSessionUseCase;
   static late final LogoutUseCase logoutUseCase;
 
@@ -46,15 +55,24 @@ class DependencyInjection {
   static void init({
     FlutterSecureStorage? storage,
     http.Client? client,
+    Box<dynamic>? injectedConfigBox,
+    Box<dynamic>? injectedAuthBox,
     AuthRepository? authRepo,
     ConfigRepository? configRepo,
     PlaylistRepository? playlistRepo,
   }) {
     secureStorage = storage ?? const FlutterSecureStorage();
-    httpClient = client ?? http.Client();
+    httpClient = client != null
+        ? (client is LoggingHttpClient ? client : LoggingHttpClient(inner: client))
+        : LoggingHttpClient();
+    configBox = injectedConfigBox;
+    authBox = injectedAuthBox;
 
-    // Config
-    configRepository = configRepo ?? SecureConfigRepository(storage: secureStorage);
+    // Config: Por defecto utilizamos HiveConfigRepository para persistencia local en fichero NoSQL
+    configRepository = configRepo ??
+        (configBox != null || Hive.isBoxOpen(SpotifyConstants.hiveConfigBox)
+            ? HiveConfigRepository(box: configBox)
+            : SecureConfigRepository(storage: secureStorage));
     getApiConfigUseCase = GetApiConfigUseCase(configRepository);
     saveApiConfigUseCase = SaveApiConfigUseCase(configRepository);
 
@@ -63,13 +81,19 @@ class DependencyInjection {
         SpotifyAuthRepository(
           httpClient: httpClient,
           storage: secureStorage,
+          authBox: authBox,
         );
     loginUseCase = LoginUseCase(authRepository);
+    loginWithCredentialsUseCase = LoginWithCredentialsUseCase(authRepository);
     getCurrentSessionUseCase = GetCurrentSessionUseCase(authRepository);
     logoutUseCase = LogoutUseCase(authRepository);
 
     // Playlist
-    playlistRepository = playlistRepo ?? SpotifyPlaylistRepository(httpClient: httpClient);
+    playlistRepository = playlistRepo ??
+        SpotifyPlaylistRepository(
+          httpClient: httpClient,
+          configRepository: configRepository,
+        );
     parseAndSearchTracksUseCase = ParseAndSearchTracksUseCase(
       playlistRepository: playlistRepository,
       textParser: PlaylistTextParser(),
@@ -91,6 +115,7 @@ class DependencyInjection {
   static AuthCubit createAuthCubit() {
     return AuthCubit(
       loginUseCase: loginUseCase,
+      loginWithCredentialsUseCase: loginWithCredentialsUseCase,
       getCurrentSessionUseCase: getCurrentSessionUseCase,
       logoutUseCase: logoutUseCase,
     );

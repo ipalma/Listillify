@@ -18,35 +18,35 @@ void main() {
     DependencyInjection.init(storage: mockStorage);
   });
 
-  testWidgets('ListillifyApp renders HomePage with UserSessionCard and PlaylistForm',
+  testWidgets('ListillifyApp starts on LoginPage with User/Password form and Hive config',
       (WidgetTester tester) async {
+    // Definimos tamaño de pantalla adecuado para desktop
+    tester.view.physicalSize = const Size(1024, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
     await tester.pumpWidget(const ListillifyApp());
     await tester.pumpAndSettle();
 
-    // Comprobamos elementos de la pantalla principal
-    expect(find.text('Listillify'), findsOneWidget);
-    expect(find.byIcon(Icons.settings), findsOneWidget);
+    // Verificamos pantalla inicial de bienvenida / login
+    expect(find.text('Bienvenido a Listillify'), findsOneWidget);
+    expect(find.byKey(const Key('username_field')), findsOneWidget);
+    expect(find.byKey(const Key('password_field')), findsOneWidget);
+    expect(find.byKey(const Key('login_button')), findsOneWidget);
+    expect(find.text('Iniciar Sesión'), findsOneWidget);
 
-    // Comprobamos la tarjeta de sesión de usuario
-    expect(find.text('No has iniciado sesión'), findsOneWidget);
-    expect(find.text('Conectar'), findsOneWidget);
+    // Verificamos validación de usuario y contraseña si se pulsa Iniciar Sesión vacíos
+    await tester.tap(find.byKey(const Key('login_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Por favor, introduce tu usuario'), findsOneWidget);
 
-    // Comprobamos el formulario de playlist
-    expect(find.text('Crear Nueva Playlist'), findsOneWidget);
-    expect(find.text('Nombre de la playlist'), findsOneWidget);
-    expect(find.text('Ejemplo'), findsOneWidget);
-
-    // Tocamos el botón de 'Ejemplo' para autocompletar canciones
-    await tester.tap(find.text('Ejemplo'));
+    // Abrimos el diálogo de configuración de credenciales mediante el botón del AppBar
+    await tester.tap(find.byKey(const Key('config_api_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Clásicos de Rock y Éxitos'), findsOneWidget);
-
-    // Abrimos el diálogo de configuración desde el AppBar
-    await tester.tap(find.byIcon(Icons.settings));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Configuración de Spotify API'), findsOneWidget);
+    // Verificamos los campos de Client ID y Client Secret
+    expect(find.text('Credenciales de Spotify API'), findsOneWidget);
     expect(find.text('Spotify Client ID'), findsOneWidget);
+    expect(find.text('Spotify Client Secret'), findsOneWidget);
   });
 }

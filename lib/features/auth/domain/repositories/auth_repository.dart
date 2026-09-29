@@ -8,6 +8,12 @@ abstract class AuthRepository {
   /// Inicia el flujo de autenticación OAuth 2.0 PKCE con el [clientId] configurado.
   Future<Result<UserSession>> login(String clientId);
 
+  /// Inicia sesión utilizando credenciales directas de usuario y contraseña (con persistencia local en Hive).
+  Future<Result<UserSession>> loginWithCredentials({
+    required String username,
+    required String password,
+  });
+
   /// Recupera la sesión persistida actualmente, si existe.
   Future<Result<UserSession?>> getCurrentSession();
 

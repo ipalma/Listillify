@@ -30,7 +30,7 @@ class SaveApiConfigUseCase implements UseCase<void, SaveApiConfigParams> {
     // Validación de negocio en la capa de dominio
     if (!config.isValid) {
       return const FailureResult(
-        ValidationFailure(message: 'El Client ID de Spotify no puede estar vacío.'),
+        ValidationFailure(message: 'El Client ID y el Client Secret no pueden estar vacíos.'),
       );
     }
 

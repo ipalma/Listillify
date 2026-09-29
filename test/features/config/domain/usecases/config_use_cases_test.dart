@@ -23,7 +23,7 @@ void main() {
 
   group('GetApiConfigUseCase', () {
     test('should return ApiConfig from repository when successful', () async {
-      const expectedConfig = ApiConfig(clientId: 'spotify_client_123');
+      const expectedConfig = ApiConfig(clientId: 'spotify_client_123', clientSecret: 'sec_123');
       when(() => mockRepository.getConfig())
           .thenAnswer((_) async => const Success(expectedConfig));
 
@@ -48,7 +48,7 @@ void main() {
 
   group('SaveApiConfigUseCase', () {
     test('should save configuration when ApiConfig is valid', () async {
-      const validConfig = ApiConfig(clientId: 'valid_client_id_456');
+      const validConfig = ApiConfig(clientId: 'valid_client_id_456', clientSecret: 'valid_secret');
       when(() => mockRepository.saveConfig(validConfig))
           .thenAnswer((_) async => const Success(null));
 
@@ -58,13 +58,17 @@ void main() {
       verify(() => mockRepository.saveConfig(validConfig)).called(1);
     });
 
-    test('should return ValidationFailure without calling repository when clientId is empty', () async {
-      const invalidConfig = ApiConfig(clientId: '   ');
+    test('should return ValidationFailure without calling repository when clientId or clientSecret is empty', () async {
+      const invalidConfig1 = ApiConfig(clientId: '   ', clientSecret: 'secret');
+      const invalidConfig2 = ApiConfig(clientId: 'id', clientSecret: '');
 
-      final result = await saveUseCase(const SaveApiConfigParams(config: invalidConfig));
+      final result1 = await saveUseCase(const SaveApiConfigParams(config: invalidConfig1));
+      final result2 = await saveUseCase(const SaveApiConfigParams(config: invalidConfig2));
 
-      expect(result.isFailure, isTrue);
-      expect(result.failureOrNull, isA<ValidationFailure>());
+      expect(result1.isFailure, isTrue);
+      expect(result1.failureOrNull, isA<ValidationFailure>());
+      expect(result2.isFailure, isTrue);
+      expect(result2.failureOrNull, isA<ValidationFailure>());
       verifyZeroInteractions(mockRepository);
     });
   });

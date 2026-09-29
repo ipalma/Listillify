@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:listillify/core/theme/app_theme.dart';
 import 'package:listillify/features/auth/presentation/cubit/auth_cubit.dart';
+import 'package:listillify/features/auth/presentation/cubit/auth_state.dart';
+import 'package:listillify/features/auth/presentation/pages/login_page.dart';
 import 'package:listillify/features/auth/presentation/widgets/user_session_card.dart';
 import 'package:listillify/features/config/presentation/cubit/config_cubit.dart';
 import 'package:listillify/features/config/presentation/widgets/config_dialog.dart';
@@ -10,11 +12,32 @@ import 'package:listillify/features/playlist/presentation/cubit/playlist_state.d
 import 'package:listillify/features/playlist/presentation/widgets/playlist_form.dart';
 import 'package:listillify/features/playlist/presentation/widgets/playlist_preview_view.dart';
 import 'package:listillify/features/playlist/presentation/widgets/playlist_success_card.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:listillify/core/constants/spotify_constants.dart';
+import 'package:listillify/core/logging/app_logger.dart';
+import 'package:listillify/features/logging/presentation/widgets/log_viewer_dialog.dart';
 import 'package:listillify/injection.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  DependencyInjection.init();
+  await AppLogger.instance.init();
+
+  Box<dynamic>? configBox;
+  Box<dynamic>? authBox;
+
+  try {
+    await Hive.initFlutter();
+    configBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveConfigBox);
+    authBox = await Hive.openBox<dynamic>(SpotifyConstants.hiveAuthBox);
+  } catch (e, stack) {
+    debugPrint('Aviso al inicializar Hive: $e\n$stack');
+  }
+
+  DependencyInjection.init(
+    injectedConfigBox: configBox,
+    injectedAuthBox: authBox,
+  );
+
   runApp(const ListillifyApp());
 }
 
@@ -40,7 +63,14 @@ class ListillifyApp extends StatelessWidget {
         title: 'Listillify',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
-        home: const HomePage(),
+        home: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, authState) {
+            if (authState is Authenticated) {
+              return const HomePage();
+            }
+            return const LoginPage();
+          },
+        ),
       ),
     );
   }
@@ -65,6 +95,11 @@ class HomePage extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.terminal, color: AppTheme.spotifyGreen),
+            tooltip: 'Ver Logs HTTP',
+            onPressed: () => LogViewerDialog.show(context),
+          ),
           IconButton(
             icon: const Icon(Icons.settings, color: AppTheme.spotifyLightGrey),
             tooltip: 'Configuración Spotify API',
