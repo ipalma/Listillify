@@ -20,6 +20,7 @@ import 'package:listillify/features/playlist/presentation/cubit/playlist_cubit.d
 
 import 'package:hive/hive.dart';
 import 'package:listillify/core/constants/spotify_constants.dart';
+import 'package:listillify/core/network/logging_http_client.dart';
 import 'package:listillify/features/auth/domain/usecases/login_with_credentials_use_case.dart';
 import 'package:listillify/features/config/infrastructure/repositories/hive_config_repository.dart';
 
@@ -61,7 +62,9 @@ class DependencyInjection {
     PlaylistRepository? playlistRepo,
   }) {
     secureStorage = storage ?? const FlutterSecureStorage();
-    httpClient = client ?? http.Client();
+    httpClient = client != null
+        ? (client is LoggingHttpClient ? client : LoggingHttpClient(inner: client))
+        : LoggingHttpClient();
     configBox = injectedConfigBox;
     authBox = injectedAuthBox;
 

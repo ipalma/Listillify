@@ -6,6 +6,7 @@ import 'package:listillify/features/auth/presentation/cubit/auth_state.dart';
 import 'package:listillify/features/config/presentation/cubit/config_cubit.dart';
 import 'package:listillify/features/config/presentation/cubit/config_state.dart';
 import 'package:listillify/features/config/presentation/widgets/config_dialog.dart';
+import 'package:listillify/features/logging/presentation/widgets/log_viewer_dialog.dart';
 
 /// PATRÓN DE DISEÑO: Presentation Page (Clean Architecture / Presentation Layer)
 /// Pantalla inicial de autenticación de Listillify.
@@ -48,6 +49,11 @@ class _LoginPageState extends State<LoginPage> {
       appBar: AppBar(
         title: const Text('Listillify'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.terminal, color: AppTheme.spotifyGreen),
+            tooltip: 'Ver Logs HTTP',
+            onPressed: () => LogViewerDialog.show(context),
+          ),
           IconButton(
             key: const Key('config_api_button'),
             icon: const Icon(Icons.settings, color: AppTheme.spotifyLightGrey),

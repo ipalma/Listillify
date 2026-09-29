@@ -219,14 +219,15 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
     bool isPublic = false,
   }) async {
     try {
-      final createUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/users/$userId/playlists');
+      // Usamos el endpoint estándar /me/playlists (no depende del formato del ID de usuario ni de emails)
+      final createUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/me/playlists');
       final body = jsonEncode({
         'name': name,
         'description': description ?? 'Creado con Listillify',
         'public': isPublic,
       });
 
-      final response = await _httpClient.post(
+      var response = await _httpClient.post(
         createUri,
         headers: {
           'Authorization': 'Bearer $accessToken',
@@ -234,6 +235,22 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
         },
         body: body,
       );
+
+      // Si falla y tenemos un userId alfanumérico sin caracteres especiales ni arroba, intentamos fallback
+      if (response.statusCode != 200 &&
+          response.statusCode != 201 &&
+          userId.isNotEmpty &&
+          !userId.contains('@')) {
+        final fallbackUri = Uri.parse('${SpotifyConstants.apiBaseUrl}/users/$userId/playlists');
+        response = await _httpClient.post(
+          fallbackUri,
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        );
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;

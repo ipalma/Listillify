@@ -35,7 +35,7 @@ class SpotifyAuthRepository implements AuthRepository {
         _storage = storage ?? const FlutterSecureStorage(),
         _pkceService = pkceService ?? PkceService(),
         _callbackServer = callbackServer ?? OAuthCallbackServer(),
-        _urlLauncher = urlLauncher ?? launchUrl;
+        _urlLauncher = urlLauncher ?? ((url) => launchUrl(url, mode: LaunchMode.externalApplication));
 
   Box<dynamic>? get _box {
     if (authBox != null) return authBox;

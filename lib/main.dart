@@ -14,10 +14,13 @@ import 'package:listillify/features/playlist/presentation/widgets/playlist_previ
 import 'package:listillify/features/playlist/presentation/widgets/playlist_success_card.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:listillify/core/constants/spotify_constants.dart';
+import 'package:listillify/core/logging/app_logger.dart';
+import 'package:listillify/features/logging/presentation/widgets/log_viewer_dialog.dart';
 import 'package:listillify/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppLogger.instance.init();
 
   Box<dynamic>? configBox;
   Box<dynamic>? authBox;
@@ -92,6 +95,11 @@ class HomePage extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.terminal, color: AppTheme.spotifyGreen),
+            tooltip: 'Ver Logs HTTP',
+            onPressed: () => LogViewerDialog.show(context),
+          ),
           IconButton(
             icon: const Icon(Icons.settings, color: AppTheme.spotifyLightGrey),
             tooltip: 'Configuración Spotify API',
