@@ -16,6 +16,7 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
   final ConfigRepository? configRepository;
   String? _cachedClientToken;
   DateTime? _cachedTokenExpiresAt;
+  final Map<String, TrackItem?> _searchCache = {};
 
   SpotifyPlaylistRepository({
     http.Client? httpClient,
@@ -72,6 +73,11 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
     required String accessToken,
   }) async {
     try {
+      final cacheKey = query.trim().toLowerCase();
+      if (_searchCache.containsKey(cacheKey)) {
+        return Success(_searchCache[cacheKey]);
+      }
+
       var effectiveToken = await _resolveToken(accessToken);
       final encodedQuery = Uri.encodeComponent(query);
       final searchUri = Uri.parse(
@@ -97,9 +103,12 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
 
       if (response.statusCode == 429) {
         final retryAfter = int.tryParse(response.headers['retry-after'] ?? '5') ?? 5;
+        final isQuota = response.body.contains('QUOTA_EXCEEDED');
         return FailureResult(
           RateLimitFailure(
-            message: 'Spotify API rate limit excedido. Espera $retryAfter segundos.',
+            message: isQuota
+                ? 'Spotify API: Cuota de peticiones excedida (QUOTA_EXCEEDED). Tu aplicación en el Spotify Developer Dashboard ha alcanzado el límite de volumen en Modo Desarrollo. Spotify reinicia este cupo periódicamente.'
+                : 'Spotify API rate limit excedido. Espera $retryAfter segundos.',
             retryAfterSeconds: retryAfter,
           ),
         );
@@ -126,16 +135,21 @@ class SpotifyPlaylistRepository implements PlaylistRepository {
       final tracks = json['tracks']?['items'] as List<dynamic>?;
       if (tracks != null && tracks.isNotEmpty) {
         final item = tracks.first as Map<String, dynamic>;
-        return Success(_mapTrackItem(item, query));
+        final trackItem = _mapTrackItem(item, query);
+        _searchCache[cacheKey] = trackItem;
+        return Success(trackItem);
       }
 
       // Si no hay tracks, comprobamos episodios de podcast
       final episodes = json['episodes']?['items'] as List<dynamic>?;
       if (episodes != null && episodes.isNotEmpty) {
         final item = episodes.first as Map<String, dynamic>;
-        return Success(_mapEpisodeItem(item, query));
+        final episodeItem = _mapEpisodeItem(item, query);
+        _searchCache[cacheKey] = episodeItem;
+        return Success(episodeItem);
       }
 
+      _searchCache[cacheKey] = null;
       return const Success(null);
     } catch (e) {
       if (e is Failure) return FailureResult(e);

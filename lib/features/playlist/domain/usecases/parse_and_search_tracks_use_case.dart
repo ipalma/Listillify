@@ -63,6 +63,11 @@ class ParseAndSearchTracksUseCase
       final item = parsedQueries[i];
       params.onProgress?.call(i + 1, total, item.query);
 
+      // Pausa defensiva de 100ms para evitar ráfagas masivas que activen el rate limit de Spotify
+      if (i > 0) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
       Result<TrackItem?> searchResult;
 
       if (item.isDirectUri && item.directUri != null) {
